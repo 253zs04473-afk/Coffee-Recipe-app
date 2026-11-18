@@ -1,0 +1,62 @@
+extends layout
+include _recipe
+
+block content
+  h1 ☕ コーヒー抽出レシピ帳
+  nav
+    a(href="/admin") 管理ページ
+  h2 レシピを保存する
+  form.recipe(method="post" action="/recipes")
+    input(type="hidden" name="_csrf" value=csrfToken)
+    if error
+      p.error= error
+    label
+      | レシピ名（30文字まで）
+      input(type="text" name="name" maxlength="30" required value=values.name || "")
+    div.grid
+      label
+        | 抽出方法
+        select(name="method" required)
+          each m in METHODS
+            option(value=m selected=(values.method === m))= m
+      label
+        | 挽き目
+        select(name="grind" required)
+          each g in GRINDS
+            option(value=g selected=(values.grind ? values.grind === g : g === "中挽き"))= g
+      label
+        | 粉の量(g)
+        input(type="number" name="dose" min="1" max="100" step="0.1" required value=values.dose || "")
+      label
+        | お湯の量(g)
+        input(type="number" name="water" min="1" max="2000" step="1" required value=values.water || "")
+      label
+        | お湯の温度(℃・任意)
+        input(type="number" name="temp" min="0" max="100" step="1" value=values.temp || "")
+      label
+        | 抽出時間(秒・任意)
+        input(type="number" name="seconds" min="1" max="86400" step="1" value=values.seconds || "")
+    label
+      | 豆の名前（任意・40文字まで）
+      input(type="text" name="bean" maxlength="40" value=values.bean || "")
+    label
+      | 評価
+      select(name="rating" required)
+        each n in [5, 4, 3, 2, 1]
+          option(value=n selected=(values.rating ? Number(values.rating) === n : n === 4))= stars(n)
+    label
+      | メモ（200文字まで）
+      textarea(name="notes" rows="3" maxlength="200")= values.notes || ""
+    button(type="submit") 保存する
+
+  h2 保存したレシピ
+  div.filter
+    a(href="/" class=(filter === "" ? "active" : "")) すべて
+    each m in METHODS
+      a(href="/?method=" + encodeURIComponent(m) class=(filter === m ? "active" : ""))= m
+  if recipes.length === 0
+    p レシピがまだありません。
+  else
+    ul.recipes
+      each r in recipes
+        +recipe(r, false)

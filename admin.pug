@@ -1,0 +1,13 @@
+extends layout
+include _recipe
+
+block content
+  h1 管理ページ
+  nav
+    a(href="/") レシピ帳に戻る
+  if recipes.length === 0
+    p レシピはありません。
+  else
+    ul.recipes
+      each r in recipes
+        +recipe(r, true, csrfToken)

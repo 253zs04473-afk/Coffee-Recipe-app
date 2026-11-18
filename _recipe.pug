@@ -1,0 +1,18 @@
+mixin recipe(r, withDelete, token)
+  li
+    div.title= r.name
+    div.stars= stars(r.rating)
+    div.meta #{r.method}#{r.bean ? "・" + r.bean : ""}・#{r.grind}
+    div.stats
+      span 粉 <b>#{r.dose}g</b>
+      span お湯 <b>#{r.water}g</b>
+      span 比率 <b>1:#{r.ratio}</b>
+      span 温度 <b>#{r.temp == null ? "-" : r.temp + "℃"}</b>
+      span 時間 <b>#{formatTime(r.seconds)}</b>
+    if r.notes
+      div.notes= r.notes
+    if withDelete
+      form(method="post" action="/admin/delete" style="margin-top:.5rem")
+        input(type="hidden" name="_csrf" value=token)
+        input(type="hidden" name="id" value=r.id)
+        button.danger(type="submit") 削除
