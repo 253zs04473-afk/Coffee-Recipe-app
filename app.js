@@ -1,6 +1,7 @@
 const express = require("express");
 const session = require("express-session");
 const crypto = require("crypto");
+const multer = require("multer");
 
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
@@ -86,7 +87,7 @@ let nextId = 1;
 const recipes = [];
 
 function addRecipe(r) {
-  recipes.push({ id: nextId++, ...r, ratio: Math.round((r.water / r.dose) * 10) / 10 });
+  recipes.push({ id: nextId++, hasPhoto: Boolean(r.photo), ...r, ratio: Math.round((r.water / r.dose) * 10) / 10 });
 }
 
 addRecipe({ name: "朝の定番ハンドドリップ", method: "ハンドドリップ", bean: "エチオピア イルガチェフェ", grind: "中細挽き", dose: 15, water: 250, temp: 92, seconds: 180, rating: 5, notes: "30秒蒸らしてから3回に分けて注ぐ。華やかな香り。" });
@@ -134,6 +135,22 @@ function validate(body) {
   };
 }
 
+// ---- 写真アップロード（メモリ上に保存。再起動すると消えます）----
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_PHOTOS = 50; // メモリを使い切らないための上限
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_PHOTO_BYTES, files: 1, fields: 20, fieldSize: 20 * 1024 },
+});
+
+// ファイルの先頭バイトで画像の種類を判定する（拡張子や申告された種類は信用しない）
+function detectImageType(buf) {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf.length >= 8 && buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (buf.length >= 12 && buf.slice(0, 4).toString("latin1") === "RIFF" && buf.slice(8, 12).toString("latin1") === "WEBP") return "image/webp";
+  return null;
+}
+
 // 表示用ヘルパー
 app.locals.formatTime = (s) => (s == null ? "-" : Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"));
 app.locals.stars = (n) => "★".repeat(n) + "☆".repeat(5 - n);
@@ -150,16 +167,48 @@ function renderIndex(req, res, extra) {
 app.get("/", (req, res) => renderIndex(req, res));
 
 app.post("/recipes", (req, res) => {
-  if (!verifyToken(req)) {
-    return res.status(403).send("不正なリクエストです（CSRFトークンが無効です）。");
-  }
-  const result = validate(req.body);
-  if (result.error) {
-    res.status(400);
-    return renderIndex(req, res, { error: result.error, values: req.body });
-  }
-  addRecipe(result.recipe);
-  res.redirect("/");
+  upload.single("photo")(req, res, (err) => {
+    if (err) {
+      const message =
+        err.code === "LIMIT_FILE_SIZE"
+          ? "写真は2MB以下にしてください。"
+          : "フォームの送信内容に問題があります。";
+      res.status(400);
+      return renderIndex(req, res, { error: message, values: {} });
+    }
+    if (!verifyToken(req)) {
+      return res.status(403).send("不正なリクエストです（CSRFトークンが無効です）。");
+    }
+    const fail = (message) => {
+      res.status(400);
+      return renderIndex(req, res, { error: message, values: req.body });
+    };
+    const result = validate(req.body);
+    if (result.error) return fail(result.error);
+
+    const recipe = result.recipe;
+    if (req.file && req.file.size > 0) {
+      const type = detectImageType(req.file.buffer);
+      if (!type) return fail("写真はJPEG、PNG、WebPのいずれかにしてください。");
+      if (recipes.filter((r) => r.hasPhoto).length >= MAX_PHOTOS) {
+        return fail("写真の保存数が上限に達しています。写真なしで保存してください。");
+      }
+      recipe.photo = req.file.buffer;
+      recipe.photoType = type;
+    }
+    addRecipe(recipe);
+    res.redirect("/");
+  });
+});
+
+// 写真の配信（Content-Type は判定済みの値を固定で返す）
+app.get("/recipes/:id/photo", (req, res) => {
+  const r = recipes.find((x) => x.id === Number(req.params.id));
+  if (!r || !r.photo) return res.status(404).send("Not found");
+  res.set("Content-Type", r.photoType);
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("Cache-Control", "public, max-age=300");
+  res.send(r.photo);
 });
 
 app.get("/admin", basicAuth, (req, res) => {
