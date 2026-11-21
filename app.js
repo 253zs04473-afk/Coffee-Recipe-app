@@ -25,7 +25,7 @@ app.use(
     secret: process.env.SESSION_SECRET || "dev-secret-change-me",
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: "lax", secure: isProd },
+    cookie: { httpOnly: true, sameSite: "lax", secure: isProd, maxAge: 7 * 24 * 60 * 60 * 1000 },
   })
 );
 
@@ -161,7 +161,14 @@ app.locals.GRINDS = GRINDS;
 function renderIndex(req, res, extra) {
   const q = METHODS.includes(req.query.method) ? req.query.method : "";
   const list = recipes.filter((r) => !q || r.method === q).reverse();
-  res.render("index", { recipes: list, filter: q, csrfToken: issueToken(req), values: {}, ...extra });
+  res.render("index", {
+    recipes: list,
+    filter: q,
+    csrfToken: issueToken(req),
+    ownerId: req.session.ownerId || null,
+    values: {},
+    ...extra,
+  });
 }
 
 app.get("/", (req, res) => renderIndex(req, res));
@@ -196,6 +203,9 @@ app.post("/recipes", (req, res) => {
       recipe.photo = req.file.buffer;
       recipe.photoType = type;
     }
+    // 作った人を覚えておく（ログインはないので、ブラウザのセッションで本人を判定する）
+    if (!req.session.ownerId) req.session.ownerId = crypto.randomBytes(16).toString("hex");
+    recipe.ownerId = req.session.ownerId;
     addRecipe(recipe);
     res.redirect("/");
   });
@@ -209,6 +219,21 @@ app.get("/recipes/:id/photo", (req, res) => {
   res.set("X-Content-Type-Options", "nosniff");
   res.set("Cache-Control", "public, max-age=300");
   res.send(r.photo);
+});
+
+// 自分が作ったレシピだけ削除できる
+app.post("/recipes/delete", (req, res) => {
+  if (!verifyToken(req)) {
+    return res.status(403).send("不正なリクエストです（CSRFトークンが無効です）。");
+  }
+  const index = recipes.findIndex((r) => r.id === Number(req.body.id));
+  if (index < 0) return res.redirect("/");
+  const owner = req.session.ownerId;
+  if (!owner || recipes[index].ownerId !== owner) {
+    return res.status(403).send("このレシピを削除する権限がありません。");
+  }
+  recipes.splice(index, 1);
+  res.redirect("/");
 });
 
 app.get("/admin", basicAuth, (req, res) => {
