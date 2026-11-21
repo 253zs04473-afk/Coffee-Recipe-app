@@ -62,4 +62,4 @@ block content
   else
     ul.recipes
       each r in recipes
-        +recipe(r, false)
+        +recipe(r, ownerId && r.ownerId === ownerId ? "/recipes/delete" : null, csrfToken)
