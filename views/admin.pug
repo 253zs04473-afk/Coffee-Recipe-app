@@ -10,4 +10,4 @@ block content
   else
     ul.recipes
       each r in recipes
-        +recipe(r, true, csrfToken)
+        +recipe(r, "/admin/delete", csrfToken)
