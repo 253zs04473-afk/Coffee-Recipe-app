@@ -1,5 +1,7 @@
 mixin recipe(r, withDelete, token)
   li
+    if r.hasPhoto
+      img.photo(src="/recipes/" + r.id + "/photo" alt="" + r.name + "の豆のパッケージ" loading="lazy")
     div.title= r.name
     div.stars= stars(r.rating)
     div.meta #{r.method}#{r.bean ? "・" + r.bean : ""}・#{r.grind}
