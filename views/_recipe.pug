@@ -1,4 +1,4 @@
-mixin recipe(r, withDelete, token)
+mixin recipe(r, deleteAction, token)
   li
     if r.hasPhoto
       img.photo(src="/recipes/" + r.id + "/photo" alt="" + r.name + "の豆のパッケージ" loading="lazy")
@@ -13,8 +13,8 @@ mixin recipe(r, withDelete, token)
       span 時間 <b>#{formatTime(r.seconds)}</b>
     if r.notes
       div.notes= r.notes
-    if withDelete
-      form(method="post" action="/admin/delete" style="margin-top:.5rem")
+    if deleteAction
+      form(method="post" action=deleteAction style="margin-top:.5rem" onsubmit="return confirm('このレシピを削除しますか？')")
         input(type="hidden" name="_csrf" value=token)
         input(type="hidden" name="id" value=r.id)
         button.danger(type="submit") 削除
