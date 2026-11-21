@@ -6,7 +6,7 @@ block content
   nav
     a(href="/admin") 管理ページ
   h2 レシピを保存する
-  form.recipe(method="post" action="/recipes")
+  form.recipe(method="post" action="/recipes" enctype="multipart/form-data")
     input(type="hidden" name="_csrf" value=csrfToken)
     if error
       p.error= error
@@ -39,6 +39,9 @@ block content
     label
       | 豆の名前（任意・40文字まで）
       input(type="text" name="bean" maxlength="40" value=values.bean || "")
+    label
+      | 豆のパッケージの写真（任意・JPEG/PNG/WebP・2MBまで）
+      input(type="file" name="photo" accept="image/jpeg,image/png,image/webp")
     label
       | 評価
       select(name="rating" required)
